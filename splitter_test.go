@@ -7,71 +7,60 @@ import (
 )
 
 // this test maximizes message size for a single SMS (140 bytes) and ensures that the message is not split
-func TestCreateSMSPayloadsReturnsSingleSMS(t *testing.T) {
+func TestSplitReturnsSingleSMS(t *testing.T) {
 	const from = "from"
 	const to = "to"
 
-	var TestCreateSMSPayloadsReturnsSingleSMS = []struct {
+	var TestSplitReturnsSingleSMS = []struct {
 		name             string
 		from             string
 		to               []string
 		message          string
-		encoder          Encoder
-		shortReference   bool
 		expectedSplit    []string
-		expectedEncoding string
 	}{
 		{
 			"7-bit with no special characters",
 			from,
 			[]string{to},
 			"This message is exactly 160 characters long ....................................................................................................................",
-			NewGSM(),
-			true,
 			[]string{"This message is exactly 160 characters long ...................................................................................................................."},
-			EncoderNameGSM,
 		},
 		{
 			"7-bit with extended GSM characters",
 			from,
 			[]string{to},
 			"This message contains 98 regular characters and 31 special characters, totalling 160 code points. [][][][][][][][][][][][][][][]~",
-			NewGSM(),
-			true,
 			[]string{"This message contains 98 regular characters and 31 special characters, totalling 160 code points. [][][][][][][][][][][][][][][]~"},
-			EncoderNameGSM,
 		},
 		{
 			"Unicode with only single code point characters",
 			from,
 			[]string{to},
 			"This message contains 70 single code point characters. 你好朋友你好朋友你好朋友你好朋",
-			NewUTF16(),
-			true,
 			[]string{"This message contains 70 single code point characters. 你好朋友你好朋友你好朋友你好朋"},
-			EncoderNameUTF16,
 		},
 		{
 			"Unicode with some double code point characters",
 			from,
 			[]string{to},
 			"This message has 64 normal characters and 3 special characters. 🙃🙃🙃", // total 70 code points
-			NewUTF16(),
-			true,
 			[]string{"This message has 64 normal characters and 3 special characters. 🙃🙃🙃"},
-			EncoderNameUTF16,
 		},
 	}
 
-	for _, tt := range TestCreateSMSPayloadsReturnsSingleSMS {
-		SMSs := CreateSMSPayloads(tt.from, tt.to, tt.message, tt.encoder, tt.shortReference)
+	for _, tt := range TestSplitReturnsSingleSMS {
+		// use default settings and auto-detect encoder
+		splitter := NewSplitter()
+		SMSs, err := splitter.Split(tt.from, tt.to, tt.message)
+		if err != nil {
+			t.Fatalf("an error '%s' was encountered when splitting the message for test '%s'", err, tt.name)
+		}
 
 		// check SMS field correctness
 		assert.Equal(t, 1, len(SMSs))
 		assert.Equal(t, from, SMSs[0].from)
 		assert.Equal(t, to, SMSs[0].to)
 		assert.Equal(t, tt.message, SMSs[0].content)
-		assert.Equal(t, tt.expectedEncoding, SMSs[0].encoder)
 		assert.Equal(t, "", SMSs[0].udh)
 
 		// check expected split vs actual split
@@ -81,89 +70,76 @@ func TestCreateSMSPayloadsReturnsSingleSMS(t *testing.T) {
 }
 
 // this test pushes just past the 140 byte SMS message limit and causes splitting
-func TestCreateSMSPayloadsReturnsTwoSMSs(t *testing.T) {
+func TestSplitReturnsTwoSMSs(t *testing.T) {
 	const from = "from"
 	const to = "to"
 
-	var TestCreateSMSPayloadsReturnsTwoSMSs = []struct {
+	var TestSplitReturnsTwoSMSs = []struct {
 		name             string
 		from             string
 		to               []string
 		message          string
-		encoder          Encoder
-		shortReference   bool
 		expectedSplit    []string
-		expectedEncoding string
 	}{
 		{
 			"7-bit with no special characters",
 			from,
 			[]string{to},
 			"This message is exactly 161 characters long xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-			NewGSM(),
-			true,
 			[]string{
 				"This message is exactly 161 characters long ",
 				"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 			},
-			EncoderNameGSM,
 		},
 		{
 			"7-bit with extended GSM characters",
 			from,
 			[]string{to},
 			"This message contains 155 regular characters and 3 special characters, totalling 161 code points. [][ xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-			NewGSM(),
-			true,
 			[]string{
 				"This message contains 155 regular characters and 3 special characters, totalling 161 code points. [][ ",
 				"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 			},
-			EncoderNameGSM,
 		},
 		{
 			"Unicode with only single code point characters",
 			from,
 			[]string{to},
 			"This message contains 71 single code point characters. 你好朋友你好朋友你好朋友你好朋友",
-			NewUTF16(),
-			true,
 			[]string{
 				"This message contains 71 single code point characters. ",
 				"你好朋友你好朋友你好朋友你好朋友",
 			},
-			EncoderNameUTF16,
 		},
 		{
 			"Unicode with some double code point characters",
 			from,
 			[]string{to},
 			"This message has 65 normal characters and 3 special characters.  🙃🙃🙃", // total 71 code points
-			NewUTF16(),
-			true,
 			[]string{
 				"This message has 65 normal characters and 3 special characters.  ",
 				"🙃🙃🙃",
 			},
-			EncoderNameUTF16,
 		},
 		{
 			"Unicode, no special char, no valid split points",
 			from,
 			[]string{to},
 			"你好朋友你好朋友你好朋友你好朋友你好朋友你好朋友你好朋友你好朋友你好朋友你好朋友你好朋友你好朋友你好朋友你好朋友你好朋友你好朋友你好朋友你好朋", // total 71 code points
-			NewUTF16(),
-			true,
 			[]string{
 				"你好朋友你好朋友你好朋友你好朋友你好朋友你好朋友你好朋友你好朋友你好朋友你好朋友你好朋友你好朋友你好朋友你好朋友你好朋友你好朋友你好朋",
 				"友你好朋",
 			},
-			EncoderNameUTF16,
 		},
 	}
 
-	for _, tt := range TestCreateSMSPayloadsReturnsTwoSMSs {
-		SMSs := CreateSMSPayloads(tt.from, tt.to, tt.message, tt.encoder, tt.shortReference)
+	for _, tt := range TestSplitReturnsTwoSMSs {
+		// use default settings and auto-detect encoder
+		splitter := NewSplitter()
+		SMSs, err := splitter.Split(tt.from, tt.to, tt.message)
+		if err != nil {
+			t.Fatalf("an error '%s' was encountered when splitting the message for test '%s'", err, tt.name)
+		}
 
 		// check SMS number
 		assert.Equal(t, 2, len(SMSs))
@@ -184,10 +160,8 @@ func TestCreateSMSPayloadsReturnsTwoSMSs(t *testing.T) {
 		// check SMS field correctness
 		assert.Equal(t, from, SMSs[0].from)
 		assert.Equal(t, to, SMSs[0].to)
-		assert.Equal(t, tt.expectedEncoding, SMSs[0].encoder)
 		assert.Equal(t, from, SMSs[1].from)
 		assert.Equal(t, to, SMSs[1].to)
-		assert.Equal(t, tt.expectedEncoding, SMSs[1].encoder)
 
 		// check expected split vs actual split
 		assert.Equal(t, len(tt.expectedSplit), len(SMSs))
@@ -199,44 +173,42 @@ func TestCreateSMSPayloadsReturnsTwoSMSs(t *testing.T) {
 
 // this test passes CreateSMSPayloads multiple recipients and ensures that each resulting
 // SMS has recipients listed correctly
-func TestCreateSMSPayloadsConcatenatesTo(t *testing.T) {
+func TestSplitConcatenatesTo(t *testing.T) {
 	const from = "from"
 	var to = []string{"to1", "to2"}
 	const expectedTo = "to1 to2"
 	const message = "message"
 	const expectedSplitString = "message"
 
-	var TestCreateSMSPayloadsReturnsSingleSMS = []struct {
+	var TestSplitConcatenatesTo = []struct {
 		name             string
 		from             string
 		to               []string
 		message          string
-		encoder          Encoder
-		shortReference   bool
 		expectedSplit    []string
-		expectedEncoding string
 	}{
 		{
 			"small message, no splitting, two to's",
 			from,
 			to,
 			message,
-			NewGSM(),
-			true,
 			[]string{expectedSplitString},
-			EncoderNameGSM,
 		},
 	}
 
-	for _, tt := range TestCreateSMSPayloadsReturnsSingleSMS {
-		SMSs := CreateSMSPayloads(tt.from, tt.to, tt.message, tt.encoder, tt.shortReference)
+	for _, tt := range TestSplitConcatenatesTo {
+		// use default settings and auto-detect encoder
+		splitter := NewSplitter()
+		SMSs, err := splitter.Split(tt.from, tt.to, tt.message)
+		if err != nil {
+			t.Fatalf("an error '%s' was encountered when splitting the message for test '%s'", err, tt.name)
+		}
 
 		// check SMS field correctness
 		assert.Equal(t, 1, len(SMSs))
 		assert.Equal(t, from, SMSs[0].from)
 		assert.Equal(t, expectedTo, SMSs[0].to)
 		assert.Equal(t, tt.message, SMSs[0].content)
-		assert.Equal(t, tt.expectedEncoding, SMSs[0].encoder)
 		assert.Equal(t, "", SMSs[0].udh)
 
 		// check expected split vs actual split
@@ -245,12 +217,84 @@ func TestCreateSMSPayloadsConcatenatesTo(t *testing.T) {
 	}
 }
 
+func TestSplitUsesSpecifiedConfiguration(t *testing.T) {
+	const from = "from"
+	var to = "to"
+	const expectedTo = "to1 to2"
+	const message = "All of the characters that make up this message are in the GSM character set." // 77 code points
+
+	var TestSplitConcatenatesTo = []struct {
+		name             string
+		from             string
+		to               []string
+		message          string
+		encoder          Encoder
+		shortReference   bool
+		expectedSplit    []string
+	}{
+		{
+			"message with GSM, should not split",
+			from,
+			[]string{to},
+			message,
+			NewGSM(),
+			true,
+			[]string{message},
+		},
+		{
+			"message with UTF16, should split",
+			from,
+			[]string{to},
+			message,
+			NewUTF16(),
+			true,
+			[]string{"All of the characters that make up this message are in the GSM ", "character set."},
+		},
+		{
+			"message with 2 byte reference bit",
+			from,
+			[]string{to},
+			message,
+			NewUTF16(),
+			false,
+			[]string{"All of the characters that make up this message are in the GSM ", "character set."},
+		},
+	}
+
+	for _, tt := range TestSplitConcatenatesTo {
+		splitter := NewSplitter()
+		splitter.SetEncoder(tt.encoder)
+		splitter.SetShortReference(tt.shortReference)
+
+		SMSs, err := splitter.Split(tt.from, tt.to, tt.message)
+		if err != nil {
+			t.Fatalf("an error '%s' was encountered when splitting the message for test '%s'", err, tt.name)
+		}
+
+		// check SMS field correctness
+		assert.Equal(t, len(tt.expectedSplit), len(SMSs))
+		for idx, messagePart := range tt.expectedSplit {
+			assert.Equal(t, from, SMSs[idx].from)
+			assert.Equal(t, to, SMSs[idx].to)
+			assert.Equal(t, messagePart, SMSs[idx].content)
+		}
+
+		// check the udh lengths
+		if len(SMSs) > 1 {
+			if tt.shortReference {
+				assert.Equal(t, 6, len(SMSs[0].udh))
+			} else {
+				assert.Equal(t, 7, len(SMSs[0].udh))
+			}
+		}
+	}
+}
+
 // this test makes sure that appendUDHs does not append a UDH to SMSs if too few are given
 func TestAppendUDHsMakesNoChanges(t *testing.T) {
 	const from = "from"
 	const to = "to"
 	const content = "content"
-	const encoderName = "encoderName"
 
 	var TestAppendUDHsMakesNoChanges = []struct {
 		name string
@@ -262,7 +306,7 @@ func TestAppendUDHsMakesNoChanges(t *testing.T) {
 		},
 		{
 			"one SMS",
-			[]SMS{newSMS(from, to, content, encoderName, "")},
+			[]SMS{newSMS(from, to, content, "")},
 		},
 	}
 
@@ -277,7 +321,6 @@ func TestAppendUDHsMakesNoChanges(t *testing.T) {
 			assert.Equal(t, from, sms.from)
 			assert.Equal(t, to, sms.to)
 			assert.Equal(t, content, sms.content)
-			assert.Equal(t, encoderName, sms.encoder)
 			assert.Equal(t, "", sms.udh)
 		}
 	}
@@ -288,7 +331,6 @@ func TestAppendUDHsAddsUDHWithShortReferenceNumber(t *testing.T) {
 	const from = "from"
 	const to = "to"
 	const content = "content"
-	const encoderName = "encoderName"
 
 	var TestAppendUDHsAddsUDHWithShortReferenceNumber = []struct {
 		name string
@@ -297,21 +339,21 @@ func TestAppendUDHsAddsUDHWithShortReferenceNumber(t *testing.T) {
 		{
 			"just enough SMSs",
 			[]SMS{
-				newSMS(from, to, content, encoderName, ""),
-				newSMS(from, to, content, encoderName, ""),
+				newSMS(from, to, content, ""),
+				newSMS(from, to, content, ""),
 			},
 		},
 		{
 			"loads of SMSs",
 			[]SMS{
-				newSMS(from, to, content, encoderName, ""),
-				newSMS(from, to, content, encoderName, ""),
-				newSMS(from, to, content, encoderName, ""),
-				newSMS(from, to, content, encoderName, ""),
-				newSMS(from, to, content, encoderName, ""),
-				newSMS(from, to, content, encoderName, ""),
-				newSMS(from, to, content, encoderName, ""),
-				newSMS(from, to, content, encoderName, ""),
+				newSMS(from, to, content, ""),
+				newSMS(from, to, content, ""),
+				newSMS(from, to, content, ""),
+				newSMS(from, to, content, ""),
+				newSMS(from, to, content, ""),
+				newSMS(from, to, content, ""),
+				newSMS(from, to, content, ""),
+				newSMS(from, to, content, ""),
 			},
 		},
 	}
@@ -327,7 +369,6 @@ func TestAppendUDHsAddsUDHWithShortReferenceNumber(t *testing.T) {
 			assert.Equal(t, from, sms.from)
 			assert.Equal(t, to, sms.to)
 			assert.Equal(t, content, sms.content)
-			assert.Equal(t, encoderName, sms.encoder)
 			assert.NotEqual(t, "", sms.udh)
 		}
 
@@ -349,7 +390,6 @@ func TestAppendUDHsAddsUDHWithLongReferenceNumber(t *testing.T) {
 	const from = "from"
 	const to = "to"
 	const content = "content"
-	const encoderName = "encoderName"
 
 	var TestAppendUDHsAddsUDHWithLongReferenceNumber = []struct {
 		name string
@@ -358,21 +398,21 @@ func TestAppendUDHsAddsUDHWithLongReferenceNumber(t *testing.T) {
 		{
 			"just enough SMSs",
 			[]SMS{
-				newSMS(from, to, content, encoderName, ""),
-				newSMS(from, to, content, encoderName, ""),
+				newSMS(from, to, content, ""),
+				newSMS(from, to, content, ""),
 			},
 		},
 		{
 			"loads of SMSs",
 			[]SMS{
-				newSMS(from, to, content, encoderName, ""),
-				newSMS(from, to, content, encoderName, ""),
-				newSMS(from, to, content, encoderName, ""),
-				newSMS(from, to, content, encoderName, ""),
-				newSMS(from, to, content, encoderName, ""),
-				newSMS(from, to, content, encoderName, ""),
-				newSMS(from, to, content, encoderName, ""),
-				newSMS(from, to, content, encoderName, ""),
+				newSMS(from, to, content, ""),
+				newSMS(from, to, content, ""),
+				newSMS(from, to, content, ""),
+				newSMS(from, to, content, ""),
+				newSMS(from, to, content, ""),
+				newSMS(from, to, content, ""),
+				newSMS(from, to, content, ""),
+				newSMS(from, to, content, ""),
 			},
 		},
 	}
@@ -388,7 +428,6 @@ func TestAppendUDHsAddsUDHWithLongReferenceNumber(t *testing.T) {
 			assert.Equal(t, from, sms.from)
 			assert.Equal(t, to, sms.to)
 			assert.Equal(t, content, sms.content)
-			assert.Equal(t, encoderName, sms.encoder)
 			assert.NotEqual(t, "", sms.udh)
 		}
 

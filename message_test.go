@@ -76,7 +76,10 @@ func TestWillMessageFit(t *testing.T) {
 	}
 
 	for _, tt := range TestWillMessageFit {
-		fit := willMessageFit(tt.message, tt.encoder, tt.messageLength)
+		fit, err := willMessageFit(tt.message, tt.encoder, tt.messageLength)
+		if err != nil {
+			t.Fatalf("an error '%s' was encountered when checking message fit for test '%s'", err, tt.name)
+		}
 		assert.Equal(t, tt.expected, fit)
 	}
 }
@@ -225,10 +228,10 @@ func TestSplitMessage(t *testing.T) {
 	}
 
 	for _, tt := range TestSplitMessage {
-		messages := SplitMessage(tt.message, tt.encoder, tt.messageLength)
+		messages, err := SplitMessage(tt.message, tt.encoder, tt.messageLength)
 
 		// did SplitMessage fail?
-		if messages == nil {
+		if err != nil {
 			assert.Equal(t, tt.expected, messages)
 			continue
 		}

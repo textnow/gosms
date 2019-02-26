@@ -21,24 +21,24 @@ import (
 
 func main() {
     var (
-        from          = "from"
-        to            = []string{"to"}
-        message       = "This message should be split depending on the placement of spaces and " +
-                        "punctuation. If the client fails to stitch the message segments back " +
-                        "together, the user should still be able to read this text."
-        encoder       = gosms.NewGSM()
-        messageBytes  = 55
-        oneByteRefNum = true
+        from         = "from"
+        to           = []string{"to"}
+        message      = "This message should be split depending on the placement of spaces and " +
+                       "punctuation. If the client fails to stitch the message segments back " +
+                       "together, the user should still be able to read this text."
+        messageBytes = 55
     )
 
-    SMSs := gosms.CreateSMSPayloadsWithSize(from, to, message, encoder, messageBytes, oneByteRefNum)
+	splitter := gosms.NewSplitter()
+	splitter.SetMessageBytes(messageBytes)
+
+    SMSs, _ := splitter.Split(from, to, message)
 
     for idx, sms := range SMSs {
         fmt.Printf("SMS #%d\n", idx + 1)
         fmt.Printf("from    : %s\n", sms.GetFrom())
         fmt.Printf("to      : %s\n", sms.GetTo())
         fmt.Printf("content : \"%s\"\n", sms.GetContent())
-        fmt.Printf("encoder : %s\n", sms.GetEncoder())
         fmt.Println()
     }
 }
@@ -49,24 +49,20 @@ SMS #1
 from    : from
 to      : to
 content : "This message should be split depending on the placement "
-encoder : GSM
 
 SMS #2
 from    : from
 to      : to
 content : "of spaces and punctuation. If the client fails to stitch"
-encoder : GSM
 
 SMS #3
 from    : from
 to      : to
 content : " the message segments back together, the user should "
-encoder : GSM
 
 SMS #4
 from    : from
 to      : to
 content : "still be able to read this text."
-encoder : GSM
 
 ```

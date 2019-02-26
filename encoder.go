@@ -1,6 +1,9 @@
 package gosms
 
-import "unicode/utf16"
+import (
+	"errors"
+	"unicode/utf16"
+)
 
 const (
 	// EncoderNameGSM is the GSM Encoder Name
@@ -15,25 +18,11 @@ const (
 	highSurrogateEnd   rune = 0xDBFF
 )
 
-// Extended GSM characters set, each counts as 2 code points
-var extendedGSMChars = map[rune]string{
-	12:   "\f",
-	91:   "[",
-	92:   "\\",
-	93:   "]",
-	94:   "^",
-	123:  "{",
-	124:  "|",
-	125:  "}",
-	126:  "~",
-	8364: "€",
-}
-
-// Encoder structure encapsulates encoder specific fields
+// Encoder encapsulates encoder specific fields
 type Encoder interface {
 	GetEncoderName() string
 	GetCodePointBits() int
-	GetCodePoints(rune) int
+	GetCodePoints(rune) (int, error)
 }
 
 // GSM implements the Encoder interface
@@ -55,12 +44,12 @@ func (s *GSM) GetEncoderName() string {
 }
 
 // GetCodePoints returns the number of code points used to represent char in GSM
-func (s *GSM) GetCodePoints(char rune) int {
-	_, isGsm7Ext := extendedGSMChars[char]
-	if isGsm7Ext {
-		return 2
+func (s *GSM) GetCodePoints(char rune) (int, error) {
+	codePoints, isGSM := gsmCodePoints[char]
+	if !isGSM {
+		return 0, errors.New("char does not belong to the GSM character set")
 	}
-	return 1
+	return codePoints, nil
 }
 
 // UTF16 implements the Encoder interface
@@ -82,10 +71,10 @@ func (s *UTF16) GetEncoderName() string {
 }
 
 // GetCodePoints returns the number of code points used to represent char in UTF-16
-func (s *UTF16) GetCodePoints(char rune) int {
+func (s *UTF16) GetCodePoints(char rune) (int, error) {
 	utf16Rune, _ := utf16.EncodeRune(char)
 	if utf16Rune >= highSurrogateStart && utf16Rune <= highSurrogateEnd {
-		return 2
+		return 2, nil
 	}
-	return 1
+	return 1, nil
 }

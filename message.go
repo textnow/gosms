@@ -1,20 +1,28 @@
 package gosms
 
-import "unicode"
+import (
+	"errors"
+	"unicode"
+)
 
 // willMessageFit checks to see it a message will fit in a messageLength space without being split
-func willMessageFit(message []rune, encoder Encoder, messageLength int) bool {
+func willMessageFit(message []rune, encoder Encoder, messageLength int) (bool, error) {
 	var codePoints int
 
 	for _, char := range message {
 		// Some encodings have variable lengthed characters
-		codePoints += encoder.GetCodePoints(char)
+		charPoints, err := encoder.GetCodePoints(char)
+		if err != nil {
+			return false, errors.New("message cannot be encoded")
+		}
+
+		codePoints += charPoints
 
 		if codePoints > messageLength {
-			return false
+			return false, nil
 		}
 	}
-	return true
+	return true, nil
 }
 
 // Returns true if it is safe to split a message before char
@@ -38,14 +46,13 @@ func canSplitAfter(char rune) bool {
 
 	// Control Characters are not a part of words, numbers or graphics.
 	// Spaces are not a part of words, numbers. They are usually used to delimit words
-	// punctuation is not a part of words or numbers
+	// Punctuation is not a part of words or numbers
 	return unicode.IsControl(char) || unicode.IsSpace(char) || unicode.IsPunct(char)
 }
 
 // SplitMessage splits a message into parts with a maximum length of messageLength
-// code points. Word splitting is avoided. This function treats the message as either
-// unicode or GSM text.
-func SplitMessage(message []rune, encoder Encoder, messageLength int) []string {
+// code points. Word splitting is avoided.
+func SplitMessage(message []rune, encoder Encoder, messageLength int) ([]string, error) {
 	var messageParts []string
 	var messagePart []rune
 	var codePoints int
@@ -55,7 +62,12 @@ func SplitMessage(message []rune, encoder Encoder, messageLength int) []string {
 		var char = message[idx]
 
 		// Some encodings have variable lengthed characters
-		codePoints += encoder.GetCodePoints(char)
+		charPoints, err := encoder.GetCodePoints(char)
+		if err != nil {
+			return nil, errors.New("message cannot be encoded")
+		}
+
+		codePoints += charPoints
 
 		// check for split point
 		if canSplitBefore(char) {
@@ -66,7 +78,7 @@ func SplitMessage(message []rune, encoder Encoder, messageLength int) []string {
 		if codePoints > messageLength {
 			// if the split is impossible
 			if len(messagePart) == 0 {
-				return nil
+				return nil, errors.New("the message cannot be split with the given encoder and message length")
 			}
 
 			// split at the last valid point
@@ -103,5 +115,5 @@ func SplitMessage(message []rune, encoder Encoder, messageLength int) []string {
 	// save last message part
 	messageParts = append(messageParts, string(messagePart))
 
-	return messageParts
+	return messageParts, nil
 }
