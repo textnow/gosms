@@ -26,6 +26,7 @@ type Encoder interface {
 	GetEncoderName() string
 	GetCodePointBits() int
 	GetCodePoints(rune) (int, error)
+	CheckEncodability(string) bool
 }
 
 // GSM implements the Encoder interface
@@ -55,6 +56,18 @@ func (s *GSM) GetCodePoints(char rune) (int, error) {
 	return codePoints, nil
 }
 
+// CheckEncodability returns true if str is encodable and false otherwise
+func (s *GSM) CheckEncodability(str string) bool {
+	runeSet := []rune(str)
+	for _, char := range runeSet {
+        _, err := s.GetCodePoints(char)
+        if err != nil {
+            return false
+        }
+    }
+    return true
+}
+
 // UTF16 implements the Encoder interface
 type UTF16 struct{}
 
@@ -80,4 +93,10 @@ func (s *UTF16) GetCodePoints(char rune) (int, error) {
 		return 2, nil
 	}
 	return 1, nil
+}
+
+// CheckEncodability returns true if str is encodable and false otherwise
+func (s *UTF16) CheckEncodability(str string) bool {
+	// golang strings are all UTF-8, so all characters are in the unicode character set
+    return true
 }
