@@ -171,7 +171,7 @@ func TestSplitReturnsTwoSMSs(t *testing.T) {
 	}
 }
 
-// this test passes CreateSMSPayloads multiple recipients and ensures that each resulting
+// this test passes Split multiple recipients and ensures that each resulting
 // SMS has recipients listed correctly
 func TestSplitConcatenatesTo(t *testing.T) {
 	const from = "from"
@@ -217,10 +217,10 @@ func TestSplitConcatenatesTo(t *testing.T) {
 	}
 }
 
+// this test ensures that the Splitter's configuration setter functions work as expected
 func TestSplitUsesSpecifiedConfiguration(t *testing.T) {
 	const from = "from"
 	var to = "to"
-	const expectedTo = "to1 to2"
 	const message = "All of the characters that make up this message are in the GSM character set." // 77 code points
 
 	var TestSplitConcatenatesTo = []struct {
@@ -287,6 +287,94 @@ func TestSplitUsesSpecifiedConfiguration(t *testing.T) {
 				assert.Equal(t, 7, len(SMSs[0].udh))
 			}
 		}
+	}
+}
+
+// this test ensures that Split fails as expected when something goes wrong
+func TestSplitFails(t *testing.T) {
+	const from = "from"
+	const to = "to"
+
+	var TestSplitConcatenatesTo = []struct {
+		name           string
+		from           string
+		to             []string
+		message        string
+		bytes          int
+		encoder        Encoder
+		shortReference bool
+		expectedError  error
+	}{
+		{
+			"zero byte message, impossible split",
+			from,
+			[]string{to},
+			"Message",
+			0,
+			NewUTF16(),
+			false,
+			ErrNotSplittable,
+		},
+		{
+			"unencodable character",
+			from,
+			[]string{to},
+			"Message: 你好朋友你好朋友",
+			DefaultSMSBytes,
+			NewGSM(),
+			false,
+			ErrNotEncodable,
+		},
+	}
+
+	for _, tt := range TestSplitConcatenatesTo {
+		splitter := NewSplitter()
+		splitter.SetMessageBytes(tt.bytes)
+		splitter.SetEncoder(tt.encoder)
+		splitter.SetShortReference(tt.shortReference)
+
+		SMSs, err := splitter.Split(tt.from, tt.to, tt.message)
+
+		assert.Nil(t, SMSs)
+		assert.EqualError(t, tt.expectedError, err.Error())
+	}
+}
+
+// this test ensures that CheckEncodability works correctly
+func TestCheckEncodability(t *testing.T) {
+	var TestSplitConcatenatesTo = []struct {
+		name           string
+		message        string
+		encoder        Encoder
+		expectedResult bool
+	}{
+		{
+			"Encodable as GSM",
+			"Message",
+			NewGSM(),
+			true,
+		},
+		{
+			"Encodable as UTF16",
+			"Message: 你好朋友你好朋友",
+			NewUTF16(),
+			true,
+		},
+		{
+			"Not Encodable as GSM",
+			"Message: 你好朋友你好朋友",
+			NewGSM(),
+			false,
+		},
+	}
+
+	for _, tt := range TestSplitConcatenatesTo {
+		splitter := NewSplitter()
+		splitter.SetEncoder(tt.encoder)
+
+		encodable := splitter.CheckEncodability(tt.message)
+
+		assert.Equal(t, tt.expectedResult, encodable)
 	}
 }
 

@@ -84,6 +84,16 @@ func TestWillMessageFit(t *testing.T) {
 	}
 }
 
+func TestWillMessageFitFailsForUnencodableMessage(t *testing.T) {
+	message := []rune("Message: 你好朋友你好朋友")
+	encoder := NewGSM()
+
+	fit, err := willMessageFit(message, encoder, DefaultSMSBytes)
+
+	assert.False(t, fit)
+	assert.EqualError(t, ErrNotEncodable, err.Error())
+}
+
 // this test ensures that SplitMessage functions as expected. Messages should be split into
 // chunks of `messageLength` code points. Words should not be split. Failure returns nil.
 func TestSplitMessage(t *testing.T) {
@@ -243,4 +253,14 @@ func TestSplitMessage(t *testing.T) {
 		}
 		assert.Equal(t, string(tt.message), strings.Join(messages, ""))
 	}
+}
+
+func TestSplitMessageFailsForUnencodableMessage(t *testing.T) {
+	message := []rune("Message: 你好朋友你好朋友")
+	encoder := NewGSM()
+
+	split, err := SplitMessage(message, encoder, DefaultSMSBytes)
+
+	assert.Nil(t, split)
+	assert.EqualError(t, ErrNotEncodable, err.Error())
 }
