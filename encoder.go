@@ -5,6 +5,9 @@ import (
 	"unicode/utf16"
 )
 
+// ErrNotEncodable indicates that the supplied string or character cannot be encoded with the given encoder
+var ErrNotEncodable = errors.New("one or more characters cannot be encoded with the given encoder")
+
 const (
 	// EncoderNameGSM is the GSM Encoder Name
 	EncoderNameGSM string = "GSM"
@@ -47,7 +50,7 @@ func (s *GSM) GetEncoderName() string {
 func (s *GSM) GetCodePoints(char rune) (int, error) {
 	codePoints, isGSM := gsmCodePoints[char]
 	if !isGSM {
-		return 0, errors.New("char does not belong to the GSM character set")
+		return 0, ErrNotEncodable
 	}
 	return codePoints, nil
 }
