@@ -51,6 +51,11 @@ func (s *Splitter) SetShortReference(shortReference bool) {
 	s.shortReference = shortReference
 }
 
+// CheckEncodability returns true if the message is encodable with the splitter's encoder and false otherwise
+func (s *Splitter) CheckEncodability(message string) bool {
+	return s.encoder.CheckEncodability(message)
+}
+
 // Split generates SMSs with sizable message parts and appropriate UDHs
 func (s *Splitter) Split(from string, to []string, message string) ([]SMS, error) {
 	var smsParts []SMS

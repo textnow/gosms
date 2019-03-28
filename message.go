@@ -5,6 +5,9 @@ import (
 	"unicode"
 )
 
+// ErrNotSplittable indicates that the given message cannot be split with the given encoder and message length
+var ErrNotSplittable = errors.New("the message cannot be split with the given encoder and message length")
+
 // willMessageFit checks to see it a message will fit in a messageLength space without being split
 func willMessageFit(message []rune, encoder Encoder, messageLength int) (bool, error) {
 	var codePoints int
@@ -13,7 +16,7 @@ func willMessageFit(message []rune, encoder Encoder, messageLength int) (bool, e
 		// Some encodings have variable lengthed characters
 		charPoints, err := encoder.GetCodePoints(char)
 		if err != nil {
-			return false, errors.New("message cannot be encoded")
+			return false, ErrNotEncodable
 		}
 
 		codePoints += charPoints
@@ -64,7 +67,7 @@ func SplitMessage(message []rune, encoder Encoder, messageLength int) ([]string,
 		// Some encodings have variable lengthed characters
 		charPoints, err := encoder.GetCodePoints(char)
 		if err != nil {
-			return nil, errors.New("message cannot be encoded")
+			return nil, ErrNotEncodable
 		}
 
 		codePoints += charPoints
@@ -78,7 +81,7 @@ func SplitMessage(message []rune, encoder Encoder, messageLength int) ([]string,
 		if codePoints > messageLength {
 			// if the split is impossible
 			if len(messagePart) == 0 {
-				return nil, errors.New("the message cannot be split with the given encoder and message length")
+				return nil, ErrNotSplittable
 			}
 
 			// split at the last valid point
